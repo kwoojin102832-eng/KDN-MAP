@@ -36,6 +36,76 @@ let authPanel = null;
 let firebaseReady = false;
 
 
+const AUTO_LOGOUT_MS = 60 * 60 * 1000; // 마지막 활동 기준 1시간
+const LAST_ACTIVITY_KEY = "kdn_last_activity_at_v1";
+let autoLogoutTimer = null;
+let autoLogoutCheckTimer = null;
+let autoLogoutBound = false;
+
+function markUserActivity() {
+  if (!currentUser) return;
+  localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+  scheduleAutoLogout();
+}
+
+function getLastActivityTime() {
+  const saved = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || "0");
+  return Number.isFinite(saved) && saved > 0 ? saved : Date.now();
+}
+
+async function logoutByInactivity() {
+  if (!currentUser) return;
+  try {
+    alert("1시간 동안 활동이 없어 자동 로그아웃됩니다.");
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
+    await signOut(auth);
+  } catch (e) {
+    window.location.replace("login.html?next=index.html");
+  }
+}
+
+function scheduleAutoLogout() {
+  if (autoLogoutTimer) clearTimeout(autoLogoutTimer);
+  if (!currentUser) return;
+
+  const elapsed = Date.now() - getLastActivityTime();
+  const remaining = AUTO_LOGOUT_MS - elapsed;
+
+  if (remaining <= 0) {
+    logoutByInactivity();
+    return;
+  }
+
+  autoLogoutTimer = setTimeout(logoutByInactivity, remaining);
+}
+
+function startInactivityLogout() {
+  localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+
+  if (!autoLogoutBound) {
+    ["click", "touchstart", "keydown", "mousemove", "scroll"].forEach(eventName => {
+      window.addEventListener(eventName, markUserActivity, { passive: true });
+    });
+    autoLogoutBound = true;
+  }
+
+  scheduleAutoLogout();
+
+  if (autoLogoutCheckTimer) clearInterval(autoLogoutCheckTimer);
+  autoLogoutCheckTimer = setInterval(scheduleAutoLogout, 60 * 1000);
+}
+
+function stopInactivityLogout() {
+  if (autoLogoutTimer) clearTimeout(autoLogoutTimer);
+  if (autoLogoutCheckTimer) clearInterval(autoLogoutCheckTimer);
+  autoLogoutTimer = null;
+  autoLogoutCheckTimer = null;
+  localStorage.removeItem(LAST_ACTIVITY_KEY);
+}
+
+
+
+
 let map;
 let tileMeta = [];
 let branchMeta = [];
@@ -231,6 +301,7 @@ function initAuthSync() {
     currentUser = user;
 
     if (!user) {
+      stopInactivityLogout();
       if (unsubscribeOverrides) {
         unsubscribeOverrides();
         unsubscribeOverrides = null;
@@ -243,6 +314,7 @@ function initAuthSync() {
 
     hideAuthPanel();
     firebaseReady = true;
+    startInactivityLogout();
     startOverrideSync();
     renderLoginStatus();
   });
@@ -273,7 +345,7 @@ function renderLoginStatus() {
     <button id="kdnLogoutBtn" type="button" style="border:none;background:#111827;color:#fff;border-radius:999px;padding:4px 7px;font-size:11px;cursor:pointer;">로그아웃</button>
   `;
   document.body.appendChild(box);
-  box.querySelector("#kdnLogoutBtn").onclick = () => signOut(auth);
+  box.querySelector("#kdnLogoutBtn").onclick = () => { stopInactivityLogout(); signOut(auth); };
 }
 
 async function copyText(text, label) {
