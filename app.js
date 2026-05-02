@@ -49,6 +49,13 @@ const MIN_LEVEL_ALL = 7;
 const MAX_MARKERS_ALL = 5000;
 const MAX_MARKERS_BRANCH = 12000;
 const STORAGE_KEY = "kdn_status_overrides_v1";
+const REGION_BRANCHES = {
+  "1권역": ["경기본부직할", "오산지사", "서수원지사"],
+  "2권역": ["광명지사", "안산지사", "안양지사"],
+  "3권역": ["평택지사", "서평택지사", "안성지사", "화성지사"],
+  "4권역": ["성남지사", "광주지사", "하남지사"],
+  "5권역": ["이천지사", "여주지사", "서용인지사", "동용인지사"]
+};
 
 let currentGroupNo = null;
 let currentInfoOpenIndex = null;
@@ -58,6 +65,7 @@ let searchInput = null;
 let searchButton = null;
 let resetButton = null;
 let branchDropdown = null;
+let regionDropdown = null;
 let statusDropdown = null;
 let markerCountEl = null;
 let statusSummaryEl = null;
@@ -395,6 +403,56 @@ function refreshMarkerSelection() {
 function getSelectedValues(name) {
   return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(el => el.value);
 }
+
+function getSelectedRegionBranches() {
+  const selectedRegions = getSelectedValues("regionFilterCheck");
+  const allRegion = !selectedRegions.length || selectedRegions.includes("all");
+  if (allRegion) return null;
+
+  const branches = new Set();
+  selectedRegions.forEach(region => {
+    (REGION_BRANCHES[region] || []).forEach(branch => branches.add(branch));
+  });
+  return branches;
+}
+
+function hasActiveRegionFilter() {
+  const selectedRegions = getSelectedValues("regionFilterCheck");
+  return selectedRegions.length && !selectedRegions.includes("all");
+}
+
+function hasActiveBranchFilter() {
+  const selectedBranches = getSelectedValues("branchFilterCheck");
+  return selectedBranches.length && !selectedBranches.includes("all");
+}
+
+function filterByRegionAndBranch(source) {
+  let result = source || [];
+  const regionBranches = getSelectedRegionBranches();
+  const selectedBranches = getSelectedValues("branchFilterCheck");
+
+  if (regionBranches) {
+    result = result.filter(g => regionBranches.has(g.branch));
+  }
+
+  if (selectedBranches.length && !selectedBranches.includes("all")) {
+    result = result.filter(g => selectedBranches.includes(g.branch));
+  }
+
+  return result;
+}
+
+function getActiveMapBranches() {
+  const selectedBranches = getSelectedValues("branchFilterCheck");
+  if (selectedBranches.length && !selectedBranches.includes("all")) {
+    return selectedBranches;
+  }
+
+  const regionBranches = getSelectedRegionBranches();
+  if (regionBranches) return Array.from(regionBranches);
+
+  return [];
+}
 function setDropdownLabel(dropdown, values, allLabel) {
   const label = dropdown.querySelector(".kdn-multi-label");
   if (!label) return;
@@ -502,6 +560,16 @@ function buildStatusFilter() {
     { value: "green", label: "🟢 모뎀설치", checked: false }
   ], "구분", refresh);
 }
+function buildRegionFilter() {
+  const current = getSelectedValues("regionFilterCheck");
+  const items = [{ value: "all", label: "권역 전체", checked: !current.length || current.includes("all") }]
+    .concat(Object.keys(REGION_BRANCHES).map(region => ({
+      value: region,
+      label: `${region} (${REGION_BRANCHES[region].join(", ")})`,
+      checked: current.includes(region)
+    })));
+  buildMultiSelect(regionDropdown, "regionFilterCheck", items, "권역", onAreaFilterChange);
+}
 function buildBranchFilter() {
   const current = getSelectedValues("branchFilterCheck");
   const items = [{ value: "all", label: "지사 전체", checked: !current.length || current.includes("all") }]
@@ -518,7 +586,7 @@ function updateMarkerCount(items = [], meterBaseGroups = []) {
 
   const selectedBranches = getSelectedValues("branchFilterCheck");
   const selectedStatuses = getSelectedValues("statusFilterCheck");
-  const filteredBranch = selectedBranches.length && !selectedBranches.includes("all");
+  const filteredBranch = hasActiveBranchFilter() || hasActiveRegionFilter();
   const filteredStatus = selectedStatuses.length && !selectedStatuses.includes("all");
 
   const activeStatuses = filteredStatus
@@ -577,7 +645,7 @@ function updateStatusSummary(items) {
   if (!statusSummaryEl) return;
   const selectedBranches = getSelectedValues("branchFilterCheck");
   const selectedStatuses = getSelectedValues("statusFilterCheck");
-  const filteredBranch = selectedBranches.length && !selectedBranches.includes("all");
+  const filteredBranch = hasActiveBranchFilter() || hasActiveRegionFilter();
   const filteredStatus = selectedStatuses.length && !selectedStatuses.includes("all");
   if (!(filteredBranch || filteredStatus)) {
     statusSummaryEl.textContent = "";
@@ -819,6 +887,10 @@ function ensureUI() {
   statusDropdown.id = "statusFilter";
   statusDropdown.className = "kdn-multi";
 
+  regionDropdown = document.createElement("div");
+  regionDropdown.id = "regionFilter";
+  regionDropdown.className = "kdn-multi";
+
   branchDropdown = document.createElement("div");
   branchDropdown.id = "branchFilter";
   branchDropdown.className = "kdn-multi";
@@ -835,6 +907,7 @@ function ensureUI() {
   statusSummaryEl = row4;
 
   row2.appendChild(statusDropdown);
+  row2.appendChild(regionDropdown);
   row2.appendChild(branchDropdown);
 
   bar.appendChild(row1);
@@ -844,6 +917,7 @@ function ensureUI() {
   document.body.appendChild(bar);
 
   buildStatusFilter();
+  buildRegionFilter();
   buildBranchFilter();
   
 
@@ -1135,22 +1209,21 @@ async function loadAllTiles() {
 }
 
 function filterGroups() {
-  const selectedBranches = getSelectedValues("branchFilterCheck");
   const selectedStatuses = getSelectedValues("statusFilterCheck");
   const query = (appliedSearchQuery || "").trim().toLowerCase();
   const bounds = getPlainBounds();
 
   let source = groups.slice();
-  const allBranch = !selectedBranches.length || selectedBranches.includes("all");
+  const filteredArea = hasActiveBranchFilter() || hasActiveRegionFilter();
   const allStatus = !selectedStatuses.length || selectedStatuses.includes("all");
 
-  if (allBranch) {
+  if (!filteredArea) {
     if (!query && map.getLevel() > MIN_LEVEL_ALL) return [];
     if (!query) {
       source = source.filter(g => inBounds(g, bounds));
     }
   } else {
-    source = source.filter(g => selectedBranches.includes(g.branch));
+    source = filterByRegionAndBranch(source);
   }
 
   if (!allStatus) {
@@ -1167,20 +1240,18 @@ function filterGroups() {
     });
   }
 
-  const limit = allBranch ? MAX_MARKERS_ALL : MAX_MARKERS_BRANCH;
+  const limit = filteredArea ? MAX_MARKERS_BRANCH : MAX_MARKERS_ALL;
   return source.slice(0, limit);
 }
 
 
 function getMeterCountBaseGroups() {
-  const selectedBranches = getSelectedValues("branchFilterCheck");
-  const allBranch = !selectedBranches.length || selectedBranches.includes("all");
   const query = (appliedSearchQuery || "").trim().toLowerCase();
 
   let source = groups.slice();
 
-  if (!allBranch) {
-    source = source.filter(g => selectedBranches.includes(g.branch));
+  if (hasActiveBranchFilter() || hasActiveRegionFilter()) {
+    source = filterByRegionAndBranch(source);
   }
 
   if (query) {
@@ -1239,30 +1310,26 @@ function drawMarkers(items) {
 }
 
 async function refresh() {
-  const selectedBranches = getSelectedValues("branchFilterCheck");
   const selectedStatuses = getSelectedValues("statusFilterCheck");
   const query = (appliedSearchQuery || "").trim();
-  const allBranch = !selectedBranches.length || selectedBranches.includes("all");
+  const filteredArea = hasActiveBranchFilter() || hasActiveRegionFilter();
   const filteredStatus = selectedStatuses.length && !selectedStatuses.includes("all");
 
-  if (query || filteredStatus) {
+  if (query || filteredStatus || filteredArea) {
     await loadAllTiles();
-  } else if (allBranch) {
-    await loadVisibleTiles();
   } else {
-    await loadAllTiles();
+    await loadVisibleTiles();
   }
 
   drawMarkers(filterGroups());
 }
 
-async function onBranchChange() {
+async function onAreaFilterChange() {
   closeInfo();
-  const selectedBranches = getSelectedValues("branchFilterCheck");
   const query = (appliedSearchQuery || "").trim();
-  const allBranch = !selectedBranches.length || selectedBranches.includes("all");
+  const targetBranchNames = getActiveMapBranches();
 
-  if (allBranch && !query) {
+  if (!targetBranchNames.length && !query) {
     map.setCenter(new kakao.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng));
     map.setLevel(DEFAULT_LEVEL);
     await refresh();
@@ -1270,7 +1337,7 @@ async function onBranchChange() {
   }
 
   await loadAllTiles();
-  const targets = branchMeta.filter(b => selectedBranches.includes(b.name));
+  const targets = branchMeta.filter(b => targetBranchNames.includes(b.name));
 
   if (targets.length === 1) {
     const b = targets[0];
@@ -1290,6 +1357,11 @@ async function onBranchChange() {
 
   await refresh();
 }
+
+async function onBranchChange() {
+  await onAreaFilterChange();
+}
+
 
 function init() {
   ensureInfoPanel();
