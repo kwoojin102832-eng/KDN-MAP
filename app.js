@@ -147,6 +147,9 @@ let statusOverrides = loadOverrides();
 let appliedSearchQuery = "";
 let currentLocationMarker = null;
 let selectedMarkerGroupNo = null;
+let latestUpdatedGroupNo = null;
+let latestUpdatedById = "";
+let latestUpdateOverlay = null;
 
 function loadOverrides() {
   try {
@@ -242,13 +245,37 @@ function startOverrideSync() {
 
   unsubscribeOverrides = onSnapshot(collection(db, "statusOverrides"), (snapshot) => {
     const next = {};
+    let latest = null;
+
     snapshot.forEach(d => {
       const data = d.data() || {};
       if (typeof data.key === "string") {
         next[data.key] = normalizeStatus(data.status || "");
+
+        const updatedAtMs = data.updatedAt && typeof data.updatedAt.toMillis === "function"
+          ? data.updatedAt.toMillis()
+          : 0;
+
+        if (!latest || updatedAtMs > latest.updatedAtMs) {
+          latest = {
+            groupNo: String(data.groupNo || ""),
+            updatedByEmail: String(data.updatedByEmail || ""),
+            updatedAtMs
+          };
+        }
       }
     });
+
     statusOverrides = next;
+
+    if (latest && latest.groupNo) {
+      latestUpdatedGroupNo = latest.groupNo;
+      latestUpdatedById = getDisplayUserId(latest.updatedByEmail);
+    } else {
+      latestUpdatedGroupNo = null;
+      latestUpdatedById = "";
+    }
+
     saveOverrides();
     refresh();
 
@@ -269,6 +296,8 @@ async function saveRemoteOverride(groupNo, idx, value) {
 
   const key = `${groupNo}__${idx}`;
   const status = normalizeStatus(value);
+  latestUpdatedGroupNo = String(groupNo);
+  latestUpdatedById = getDisplayUserId(currentUser.email || "");
 
   await setDoc(doc(db, "statusOverrides", safeDocId(key)), {
     key,
@@ -1242,10 +1271,69 @@ window.changeRowStatus = function(groupNo, idx, value) {
   window.changeGroupedStatus(groupNo, String(idx), value);
 };
 
+
+function getDisplayUserId(email) {
+  const value = String(email || "").trim();
+  if (!value) return "";
+  return value.replace("@kdn.local", "");
+}
+
+function clearLatestUpdateLabel() {
+  if (latestUpdateOverlay) {
+    latestUpdateOverlay.setMap(null);
+    latestUpdateOverlay = null;
+  }
+}
+
+function drawLatestUpdateLabel(group) {
+  clearLatestUpdateLabel();
+
+  if (!group || !latestUpdatedById) return;
+
+  const content = document.createElement("div");
+  content.style.position = "relative";
+  content.style.transform = "translateY(-30px)";
+  content.style.background = "#111827";
+  content.style.color = "#ffffff";
+  content.style.border = "2px solid #ffffff";
+  content.style.borderRadius = "999px";
+  content.style.padding = "5px 9px";
+  content.style.fontSize = "12px";
+  content.style.fontWeight = "700";
+  content.style.lineHeight = "1";
+  content.style.whiteSpace = "nowrap";
+  content.style.boxShadow = "0 4px 14px rgba(0,0,0,0.22)";
+  content.style.pointerEvents = "none";
+  content.textContent = latestUpdatedById;
+
+  const tail = document.createElement("div");
+  tail.style.position = "absolute";
+  tail.style.left = "50%";
+  tail.style.bottom = "-7px";
+  tail.style.transform = "translateX(-50%) rotate(45deg)";
+  tail.style.width = "10px";
+  tail.style.height = "10px";
+  tail.style.background = "#111827";
+  tail.style.borderRight = "2px solid #ffffff";
+  tail.style.borderBottom = "2px solid #ffffff";
+  content.appendChild(tail);
+
+  latestUpdateOverlay = new kakao.maps.CustomOverlay({
+    position: new kakao.maps.LatLng(group.y, group.x),
+    content,
+    yAnchor: 1.1,
+    zIndex: 10001
+  });
+
+  latestUpdateOverlay.setMap(map);
+}
+
+
 function clearMarkers() {
   markers.forEach(m => m.setMap(null));
   markers = [];
   markerMap.clear();
+  clearLatestUpdateLabel();
 }
 function inBounds(g, bounds) {
   return g.y >= bounds.minLat && g.y <= bounds.maxLat && g.x >= bounds.minLng && g.x <= bounds.maxLng;
@@ -1372,6 +1460,11 @@ function drawMarkers(items) {
     markers.push(m);
     markerMap.set(g.n, m);
     visibleItems.push(g);
+  }
+
+  const latestVisibleGroup = visibleItems.find(g => g.n === latestUpdatedGroupNo);
+  if (latestVisibleGroup) {
+    drawLatestUpdateLabel(latestVisibleGroup);
   }
 
   updateMarkerCount(visibleItems, getMeterCountBaseGroups());
