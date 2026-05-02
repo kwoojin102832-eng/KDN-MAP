@@ -223,7 +223,7 @@ async function saveRemoteOverride(groupNo, idx, value) {
 
 function initAuthSync() {
   if (!isFirebaseConfigured()) {
-    renderAuthPanel();
+    renderAuthPanel("Firebase 설정값을 확인하세요.");
     return;
   }
 
@@ -235,7 +235,9 @@ function initAuthSync() {
         unsubscribeOverrides();
         unsubscribeOverrides = null;
       }
-      renderAuthPanel();
+      // 로그인 전용 페이지로 이동합니다. 기존 지도/필터/마커 로직은 변경하지 않습니다.
+      const next = encodeURIComponent("index.html");
+      window.location.replace(`login.html?next=${next}`);
       return;
     }
 
