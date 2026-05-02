@@ -6,54 +6,209 @@
   <title>KDN MAP 로그인</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { width:100%; height:100%; margin:0; padding:0; }
+    html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
-      background: linear-gradient(135deg, #111827, #374151);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:18px;
+      background:
+        radial-gradient(circle at 20% 12%, rgba(255, 235, 59, 0.55), transparent 26%),
+        radial-gradient(circle at 82% 18%, rgba(255, 213, 79, 0.42), transparent 24%),
+        linear-gradient(180deg, #ffe812 0%, #ffd83d 52%, #fff7d1 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px 16px;
+      color: #111827;
+    }
+    .phone-wrap {
+      width: min(390px, 100%);
+      min-height: min(760px, calc(100vh - 44px));
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .card {
-      width:min(420px, 100%);
-      background:#fff;
-      border-radius:20px;
-      padding:24px 20px 20px;
-      box-shadow:0 20px 60px rgba(0,0,0,0.32);
+      width: 100%;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.72);
+      border-radius: 30px;
+      padding: 26px 22px 22px;
+      box-shadow: 0 26px 70px rgba(49, 38, 0, 0.24);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
     }
-    .title { font-size:22px; font-weight:800; margin-bottom:6px; color:#111827; }
-    .desc { font-size:13px; color:#4b5563; line-height:1.5; margin-bottom:18px; }
-    label { display:block; font-size:12px; font-weight:700; color:#374151; margin:10px 0 6px; }
-    input {
-      width:100%; height:44px; border:1px solid #d1d5db; border-radius:12px;
-      padding:0 12px; font-size:15px; outline:none;
+    .card::before {
+      content: "";
+      position: absolute;
+      top: -90px;
+      right: -90px;
+      width: 180px;
+      height: 180px;
+      border-radius: 999px;
+      background: rgba(255, 232, 18, 0.34);
     }
-    input:focus { border-color:#111827; }
-    button {
-      width:100%; height:44px; border:none; border-radius:12px; background:#111827;
-      color:#fff; font-size:15px; font-weight:800; margin-top:16px; cursor:pointer;
+    .brand {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding-top: 8px;
+      margin-bottom: 30px;
     }
-    button:disabled { background:#9ca3af; cursor:not-allowed; }
-    .error { display:none; margin-top:12px; color:#dc2626; font-size:12px; line-height:1.5; }
-    .hint { margin-top:14px; color:#6b7280; font-size:11px; line-height:1.5; }
+    .logo-box {
+      width: 210px;
+      max-width: 78%;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.72);
+      border-radius: 20px;
+      box-shadow: inset 0 0 0 1px rgba(17,24,39,0.05);
+    }
+    .logo {
+      max-width: 100%;
+      max-height: 58px;
+      object-fit: contain;
+      display: block;
+    }
+    .app-title {
+      text-align: center;
+    }
+    .app-title h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      color: #191919;
+    }
+    .app-title p {
+      margin: 7px 0 0;
+      color: #6b5b00;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .form { position: relative; }
+    .field {
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .field label {
+      display: block;
+      margin: 0 0 7px 2px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #3f3f46;
+    }
+    .input {
+      width: 100%;
+      height: 54px;
+      border: 1px solid #ebe3b8;
+      border-radius: 17px;
+      background: #fffdf4;
+      padding: 0 16px;
+      font-size: 16px;
+      outline: none;
+      color: #191919;
+      transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+    .input::placeholder { color: #a1a1aa; }
+    .input:focus {
+      border-color: #facc15;
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(250,204,21,0.20);
+    }
+    .login-btn {
+      width: 100%;
+      height: 56px;
+      border: none;
+      border-radius: 18px;
+      background: #191919;
+      color: #ffe812;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 14px 26px rgba(25,25,25,0.24);
+      transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+    }
+    .login-btn:active { transform: scale(0.985); box-shadow: 0 8px 18px rgba(25,25,25,0.20); }
+    .login-btn:disabled { opacity: .62; cursor: not-allowed; transform: none; }
+    .error {
+      display: none;
+      margin-top: 12px;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: #fff1f2;
+      color: #be123c;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .footer {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: #867300;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      background: #191919;
+      opacity: .32;
+    }
+    @media (max-width: 420px) {
+      body { align-items: stretch; }
+      .phone-wrap { min-height: calc(100vh - 44px); }
+      .card { border-radius: 28px; padding: 24px 18px 20px; }
+      .app-title h1 { font-size: 26px; }
+      .logo-box { width: 200px; }
+    }
   </style>
 </head>
 <body>
-  <main class="card">
-    <div class="title">KDN MAP 로그인</div>
-    <div class="desc">작업자 아이디와 비밀번호를 입력하면 지도로 이동합니다.</div>
+  <div class="phone-wrap">
+    <main class="card" aria-label="KDN MAP 로그인">
+      <section class="brand">
+        <div class="logo-box">
+          <img class="logo" src="kdn-logo.png" alt="한전KDN 로고" />
+        </div>
+        <div class="app-title">
+          <h1>KDN MAP</h1>
+          <p>현장 작업 관리 시스템</p>
+        </div>
+      </section>
 
-    <label for="loginId">아이디</label>
-    <input id="loginId" type="text" placeholder="예: kdn01 또는 김우진" autocomplete="username" />
+      <section class="form">
+        <div class="field">
+          <label for="loginId">아이디</label>
+          <input id="loginId" class="input" type="text" placeholder="아이디 입력" autocomplete="username" />
+        </div>
 
-    <label for="password">비밀번호</label>
-    <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password" />
+        <div class="field">
+          <label for="password">비밀번호</label>
+          <input id="password" class="input" type="password" placeholder="비밀번호 입력" autocomplete="current-password" />
+        </div>
 
-    <button id="loginBtn" type="button">로그인</button>
-    <div id="error" class="error"></div>
-    <div class="hint">아이디만 입력하면 내부에서 자동으로 @kdn.local을 붙여 로그인합니다.</div>
-  </main>
+        <button id="loginBtn" class="login-btn" type="button">로그인</button>
+        <div id="error" class="error"></div>
+      </section>
+
+      <div class="footer">
+        <span>KEPCO KDN</span><span class="dot"></span><span>MAP SERVICE</span>
+      </div>
+    </main>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
@@ -111,7 +266,7 @@
         await signInWithEmailAndPassword(auth, normalizeLoginId(loginId), password);
         window.location.href = next;
       } catch (e) {
-        showError("로그인 실패: 아이디/비밀번호를 확인하세요.");
+        showError("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
         loginBtn.disabled = false;
         loginBtn.textContent = "로그인";
       }
