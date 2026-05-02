@@ -68,6 +68,7 @@ let markerMap = new Map();
 let statusOverrides = loadOverrides();
 let appliedSearchQuery = "";
 let currentLocationMarker = null;
+let selectedMarkerGroupNo = null;
 
 function loadOverrides() {
   try {
@@ -346,7 +347,7 @@ function getGroupColor(group) {
   return null;
 }
 
-function svgMarker(color) {
+function svgMarker(color, selected = false) {
   const fillMap = {
     red: "#ef4444",
     orange: "#8b5cf6",
@@ -356,6 +357,16 @@ function svgMarker(color) {
     gray: "#6b7280"
   };
   const fill = fillMap[color] || fillMap.gray;
+
+  if (selected) {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+        <polygon points="14,2 17.4,10.2 26.3,10.9 19.5,16.7 21.6,25.4 14,20.8 6.4,25.4 8.5,16.7 1.7,10.9 10.6,10.2" fill="${fill}" stroke="white" stroke-width="2.4" stroke-linejoin="round"/>
+      </svg>
+    `;
+    return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+  }
+
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
       <circle cx="8" cy="8" r="5.5" fill="${fill}" stroke="white" stroke-width="2"/>
@@ -363,9 +374,21 @@ function svgMarker(color) {
   `;
   return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
 }
-function getMarkerImage(color) {
-  return new kakao.maps.MarkerImage(svgMarker(color), new kakao.maps.Size(16, 16), {
-    offset: new kakao.maps.Point(8, 8)
+function getMarkerImage(color, selected = false) {
+  const size = selected ? 28 : 16;
+  const offset = selected ? 14 : 8;
+  return new kakao.maps.MarkerImage(svgMarker(color, selected), new kakao.maps.Size(size, size), {
+    offset: new kakao.maps.Point(offset, offset)
+  });
+}
+function refreshMarkerSelection() {
+  markerMap.forEach((marker, groupNo) => {
+    const group = groupMap.get(groupNo);
+    if (!group) return;
+    const color = getGroupColor(group);
+    if (!color) return;
+    marker.setImage(getMarkerImage(color, groupNo === selectedMarkerGroupNo));
+    marker.setZIndex(groupNo === selectedMarkerGroupNo ? 10000 : 0);
   });
 }
 
@@ -779,32 +802,6 @@ function ensureUI() {
     refresh();
   };
 
-  resetButton = document.createElement("button");
-  resetButton.className = "kdn-reset-btn";
-  resetButton.type = "button";
-  resetButton.textContent = "초기화";
-  resetButton.onclick = () => {
-    appliedSearchQuery = "";
-    searchInput.value = "";
-    statusOverrides = {};
-    localStorage.removeItem(STORAGE_KEY);
-
-    document.querySelectorAll('input[name="statusFilterCheck"]').forEach(el => {
-      el.checked = el.value === "all";
-    });
-    document.querySelectorAll('input[name="branchFilterCheck"]').forEach(el => {
-      el.checked = el.value === "all";
-    });
-    setDropdownLabel(statusDropdown, ["all"], "구분");
-    setDropdownLabel(branchDropdown, ["all"], "지사");
-    updateMarkerCount(0);
-
-    closeInfo();
-    map.setCenter(new kakao.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng));
-    map.setLevel(DEFAULT_LEVEL);
-    refresh();
-  };
-
   currentLocationButton = document.createElement("button");
   currentLocationButton.className = "kdn-reset-btn";
   currentLocationButton.type = "button";
@@ -813,7 +810,6 @@ function ensureUI() {
 
   row1.appendChild(searchInput);
   row1.appendChild(searchButton);
-  row1.appendChild(resetButton);
   row1.appendChild(currentLocationButton);
 
   const row2 = document.createElement("div");
@@ -1076,7 +1072,7 @@ window.changeGroupedStatus = async function(groupNo, indexList, value) {
   const group = groupMap.get(groupNo);
   if (group) {
     const marker = markerMap.get(groupNo);
-    if (marker) marker.setImage(getMarkerImage(getGroupColor(group)));
+    if (marker) marker.setImage(getMarkerImage(getGroupColor(group), groupNo === selectedMarkerGroupNo));
     renderInfo(group);
   }
   refresh();
@@ -1213,13 +1209,17 @@ function drawMarkers(items) {
     const color = getGroupColor(g);
     if (!color) continue;
 
+    const isSelected = g.n === selectedMarkerGroupNo;
     const m = new kakao.maps.Marker({
       position: new kakao.maps.LatLng(g.y, g.x),
-      image: getMarkerImage(color),
-      clickable: true
+      image: getMarkerImage(color, isSelected),
+      clickable: true,
+      zIndex: isSelected ? 10000 : 0
     });
 
     kakao.maps.event.addListener(m, "click", function () {
+      selectedMarkerGroupNo = g.n;
+      refreshMarkerSelection();
       renderInfo(g);
     });
 
