@@ -1,3 +1,40 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  addDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+// TODO: Firebase 콘솔 > 프로젝트 설정 > 일반 > 웹 앱 Firebase 구성값으로 교체하세요.
+const firebaseConfig = {
+  apiKey: "AIzaSyDfpnGLUxcqY69szJCmbWE10s2Mv9xF7Cw",
+  authDomain: "kdn-map.firebaseapp.com",
+  projectId: "kdn-map",
+  storageBucket: "kdn-map.firebasestorage.app",
+  messagingSenderId: "774166998071",
+  appId: "1:774166998071:web:d99011e3487d86849e23b2",
+  measurementId: "G-DE4C2P3GKZ"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+let currentUser = null;
+let unsubscribeOverrides = null;
+let authPanel = null;
+let firebaseReady = false;
+
 
 let map;
 let tileMeta = [];
@@ -41,6 +78,191 @@ function loadOverrides() {
 }
 function saveOverrides() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(statusOverrides));
+}
+
+function isFirebaseConfigured() {
+  return firebaseConfig.apiKey && !String(firebaseConfig.apiKey).startsWith("YOUR_");
+}
+
+function safeDocId(value) {
+  return encodeURIComponent(String(value || "")).replaceAll(".", "%2E");
+}
+
+function ensureAuthPanel() {
+  if (authPanel) return authPanel;
+
+  authPanel = document.createElement("div");
+  authPanel.id = "kdnAuthPanel";
+  authPanel.style.position = "fixed";
+  authPanel.style.left = "0";
+  authPanel.style.right = "0";
+  authPanel.style.top = "0";
+  authPanel.style.bottom = "0";
+  authPanel.style.zIndex = "10000";
+  authPanel.style.background = "rgba(17,24,39,0.72)";
+  authPanel.style.display = "none";
+  authPanel.style.alignItems = "center";
+  authPanel.style.justifyContent = "center";
+  authPanel.style.padding = "18px";
+  authPanel.style.boxSizing = "border-box";
+  document.body.appendChild(authPanel);
+  return authPanel;
+}
+
+function renderAuthPanel(message = "") {
+  const panel = ensureAuthPanel();
+  const configured = isFirebaseConfigured();
+
+  panel.innerHTML = `
+    <div style="width:min(420px,100%);background:#fff;border-radius:18px;padding:20px;box-shadow:0 18px 48px rgba(0,0,0,0.25);font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;">
+      <div style="font-size:20px;font-weight:800;margin-bottom:6px;">KDN MAP 로그인</div>
+      <div style="font-size:13px;color:#4b5563;line-height:1.5;margin-bottom:14px;">
+        작업자별 상태 변경을 실시간으로 공유하려면 Firebase 로그인이 필요합니다.
+      </div>
+      ${!configured ? `
+        <div style="font-size:13px;line-height:1.55;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:10px;margin-bottom:12px;">
+          app.js 상단의 <strong>firebaseConfig</strong> 값을 실제 Firebase 웹 앱 구성값으로 먼저 교체하세요.
+        </div>
+      ` : ``}
+      <input id="kdnAuthEmail" type="text" placeholder="아이디 (예: kdn01)" autocomplete="username"
+        style="width:100%;height:42px;border:1px solid #d1d5db;border-radius:10px;padding:0 12px;box-sizing:border-box;margin-bottom:8px;font-size:14px;">
+      <input id="kdnAuthPassword" type="password" placeholder="비밀번호" autocomplete="current-password"
+        style="width:100%;height:42px;border:1px solid #d1d5db;border-radius:10px;padding:0 12px;box-sizing:border-box;margin-bottom:10px;font-size:14px;">
+      ${message ? `<div style="font-size:12px;color:#dc2626;margin-bottom:10px;">${escapeHtml(message)}</div>` : ``}
+      <button id="kdnAuthLoginBtn" type="button" ${configured ? "" : "disabled"}
+        style="width:100%;height:42px;border:none;border-radius:10px;background:${configured ? "#111827" : "#9ca3af"};color:#fff;font-size:14px;font-weight:700;cursor:${configured ? "pointer" : "not-allowed"};">
+        로그인
+      </button>
+    </div>
+  `;
+
+  const loginBtn = panel.querySelector("#kdnAuthLoginBtn");
+  if (loginBtn && configured) {
+    loginBtn.onclick = async () => {
+      const loginId = panel.querySelector("#kdnAuthEmail").value.trim();
+      const email = loginId.includes("@") ? loginId : `${loginId}@kdn.local`;
+      const password = panel.querySelector("#kdnAuthPassword").value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e) {
+        renderAuthPanel("로그인 실패: 아이디/비밀번호를 확인하세요.");
+      }
+    };
+  }
+
+  panel.style.display = "flex";
+}
+
+function hideAuthPanel() {
+  const panel = ensureAuthPanel();
+  panel.style.display = "none";
+}
+
+function startOverrideSync() {
+  if (unsubscribeOverrides) unsubscribeOverrides();
+
+  unsubscribeOverrides = onSnapshot(collection(db, "statusOverrides"), (snapshot) => {
+    const next = {};
+    snapshot.forEach(d => {
+      const data = d.data() || {};
+      if (typeof data.key === "string") {
+        next[data.key] = normalizeStatus(data.status || "");
+      }
+    });
+    statusOverrides = next;
+    saveOverrides();
+    refresh();
+
+    if (currentGroupNo) {
+      const group = groupMap.get(currentGroupNo);
+      if (group) renderInfo(group);
+    }
+  }, () => {
+    alert("Firebase 상태 동기화 권한 또는 규칙을 확인하세요.");
+  });
+}
+
+async function saveRemoteOverride(groupNo, idx, value) {
+  if (!currentUser) {
+    renderAuthPanel("로그인 후 상태를 변경할 수 있습니다.");
+    throw new Error("not-authenticated");
+  }
+
+  const key = `${groupNo}__${idx}`;
+  const status = normalizeStatus(value);
+
+  await setDoc(doc(db, "statusOverrides", safeDocId(key)), {
+    key,
+    groupNo: String(groupNo),
+    rowIndex: Number(idx),
+    status,
+    updatedAt: serverTimestamp(),
+    updatedByUid: currentUser.uid,
+    updatedByEmail: currentUser.email || ""
+  }, { merge: true });
+
+  await addDoc(collection(db, "statusLogs"), {
+    key,
+    groupNo: String(groupNo),
+    rowIndex: Number(idx),
+    status,
+    updatedAt: serverTimestamp(),
+    updatedByUid: currentUser.uid,
+    updatedByEmail: currentUser.email || ""
+  });
+}
+
+function initAuthSync() {
+  if (!isFirebaseConfigured()) {
+    renderAuthPanel();
+    return;
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+
+    if (!user) {
+      if (unsubscribeOverrides) {
+        unsubscribeOverrides();
+        unsubscribeOverrides = null;
+      }
+      renderAuthPanel();
+      return;
+    }
+
+    hideAuthPanel();
+    firebaseReady = true;
+    startOverrideSync();
+    renderLoginStatus();
+  });
+}
+
+function renderLoginStatus() {
+  const old = document.getElementById("kdnLoginStatus");
+  if (old) old.remove();
+  if (!currentUser) return;
+
+  const box = document.createElement("div");
+  box.id = "kdnLoginStatus";
+  box.style.position = "fixed";
+  box.style.right = "10px";
+  box.style.bottom = "10px";
+  box.style.zIndex = "12";
+  box.style.background = "rgba(255,255,255,0.96)";
+  box.style.border = "1px solid #e5e7eb";
+  box.style.borderRadius = "999px";
+  box.style.padding = "6px 8px 6px 10px";
+  box.style.boxShadow = "0 4px 14px rgba(0,0,0,0.12)";
+  box.style.fontSize = "11px";
+  box.style.display = "flex";
+  box.style.alignItems = "center";
+  box.style.gap = "6px";
+  box.innerHTML = `
+    <span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml((currentUser.email || "로그인됨").replace("@kdn.local", ""))}</span>
+    <button id="kdnLogoutBtn" type="button" style="border:none;background:#111827;color:#fff;border-radius:999px;padding:4px 7px;font-size:11px;cursor:pointer;">로그아웃</button>
+  `;
+  document.body.appendChild(box);
+  box.querySelector("#kdnLogoutBtn").onclick = () => signOut(auth);
 }
 
 async function copyText(text, label) {
@@ -837,11 +1059,13 @@ function renderInfo(group) {
   panel.style.display = "flex";
 }
 
-window.changeGroupedStatus = function(groupNo, indexList, value) {
+window.changeGroupedStatus = async function(groupNo, indexList, value) {
   const indices = String(indexList || "")
     .split(",")
     .map(v => Number(v))
     .filter(v => !Number.isNaN(v));
+
+  const previous = { ...statusOverrides };
 
   indices.forEach(idx => {
     const key = `${groupNo}__${idx}`;
@@ -850,13 +1074,24 @@ window.changeGroupedStatus = function(groupNo, indexList, value) {
   saveOverrides();
 
   const group = groupMap.get(groupNo);
-  if (!group) return;
-
-  const marker = markerMap.get(groupNo);
-  if (marker) marker.setImage(getMarkerImage(getGroupColor(group)));
-
-  renderInfo(group);
+  if (group) {
+    const marker = markerMap.get(groupNo);
+    if (marker) marker.setImage(getMarkerImage(getGroupColor(group)));
+    renderInfo(group);
+  }
   refresh();
+
+  try {
+    await Promise.all(indices.map(idx => saveRemoteOverride(groupNo, idx, value)));
+  } catch (e) {
+    statusOverrides = previous;
+    saveOverrides();
+    if (group) renderInfo(group);
+    refresh();
+    if (String(e.message || "") !== "not-authenticated") {
+      alert("상태 저장 실패: Firebase 권한/네트워크를 확인하세요.");
+    }
+  }
 };
 
 window.changeRowStatus = function(groupNo, idx, value) {
@@ -1071,6 +1306,7 @@ function init() {
     tileMeta = tileData.tiles || [];
     branchMeta = Array.isArray(branchData) ? branchData : [];
     ensureUI();
+    initAuthSync();
     refresh();
   });
 
