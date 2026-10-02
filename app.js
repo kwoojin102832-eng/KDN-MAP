@@ -2454,16 +2454,6 @@ function infoContractRows(values) {
   return `<div><strong>계약번호</strong><div>${htmlValues}</div></div>`;
 }
 
-function getOriginalStatusForDisplay(row, currentStatus) {
-  const current = normalizeComparableStatus(currentStatus);
-  // 모뎀설치는 현장 완료상태이므로 우측 상단의 기존 상태는 JSON 원본 상태를 유지한다.
-  if (current === "모뎀설치") {
-    const original = normalizeComparableStatus((row && row.s) || "");
-    return original || current;
-  }
-  return current;
-}
-
 function renderInfo(group) {
   const panel = ensureInfoPanel();
   currentGroupNo = group.n;
@@ -2502,6 +2492,7 @@ function renderInfo(group) {
     const statusList = bucket.indices.map(idx => String(getRowStatus(group.n, idx, rows[idx]) || "").trim()).filter(Boolean);
     const uniqueStatuses = [...new Set(statusList)];
     const currentStatus = uniqueStatuses.length ? uniqueStatuses[0] : "";
+    const originalStatus = normalizeComparableStatus(first.s || "") || "-";
     const apt = escapeHtml(first.h || "-");
     const store = escapeHtml(first.i || "-");
     const note = escapeHtml(first.j || "-");
@@ -2516,7 +2507,7 @@ function renderInfo(group) {
     const contractValues = bucket.rows
       .filter((r, localIdx) => {
         const originalIdx = bucket.indices[localIdx];
-        return getOriginalStatusForDisplay(rows[originalIdx], getRowStatus(group.n, originalIdx, rows[originalIdx]));
+        return normalizeComparableStatus(getRowStatus(group.n, originalIdx, rows[originalIdx]));
       })
       .map(r => r.c || "");
 
@@ -2546,7 +2537,7 @@ function renderInfo(group) {
       <div style="border:1px solid #ececec;border-radius:12px;padding:10px;margin-bottom:10px;background:#fafafa;">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
           <div style="flex:1;font-size:13px;line-height:1.45;word-break:break-word;">${address}</div>
-          <div style="flex-shrink:0;font-size:11px;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#334155;">${escapeHtml(currentStatus || "-")}</div>
+          <div style="flex-shrink:0;font-size:11px;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#334155;">${escapeHtml(originalStatus)}</div>
         </div>
 
         <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
