@@ -2454,6 +2454,16 @@ function infoContractRows(values) {
   return `<div><strong>계약번호</strong><div>${htmlValues}</div></div>`;
 }
 
+function getOriginalStatusForDisplay(row, currentStatus) {
+  const current = normalizeComparableStatus(currentStatus);
+  // 모뎀설치는 현장 완료상태이므로 우측 상단의 기존 상태는 JSON 원본 상태를 유지한다.
+  if (current === "모뎀설치") {
+    const original = normalizeComparableStatus((row && row.s) || "");
+    return original || current;
+  }
+  return current;
+}
+
 function renderInfo(group) {
   const panel = ensureInfoPanel();
   currentGroupNo = group.n;
@@ -2506,7 +2516,7 @@ function renderInfo(group) {
     const contractValues = bucket.rows
       .filter((r, localIdx) => {
         const originalIdx = bucket.indices[localIdx];
-        return normalizeComparableStatus(getRowStatus(group.n, originalIdx, rows[originalIdx]));
+        return getOriginalStatusForDisplay(rows[originalIdx], getRowStatus(group.n, originalIdx, rows[originalIdx]));
       })
       .map(r => r.c || "");
 
