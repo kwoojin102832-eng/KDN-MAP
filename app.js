@@ -2429,6 +2429,22 @@ function renderExtraWorkDetails(bucket) {
   }).join("");
 }
 
+
+function infoContractRows(values) {
+  const rows = Array.isArray(values) ? values : [];
+  const htmlValues = rows.map(value => {
+    const contract = String(value || "").trim() || "-";
+    const raw = contract.replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    return `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div style="flex:1;word-break:break-word;">${escapeHtml(contract)}</div>
+        <button onclick="copyFieldValue('${raw}','계약번호')" style="font-size:11px;">복사</button>
+      </div>
+    `;
+  }).join("");
+  return `<div><strong>계약번호</strong><div>${htmlValues}</div></div>`;
+}
+
 function renderInfo(group) {
   const panel = ensureInfoPanel();
   currentGroupNo = group.n;
@@ -2478,6 +2494,12 @@ function renderInfo(group) {
     return normalizeComparableStatus(getRowStatus(group.n, originalIdx, rows[originalIdx]));
   })
   .map(r => ({ meter:r.m||"", apt:r.h||"", store:r.i||"" }));
+    const contractValues = bucket.rows
+      .filter((r, localIdx) => {
+        const originalIdx = bucket.indices[localIdx];
+        return normalizeComparableStatus(getRowStatus(group.n, originalIdx, rows[originalIdx]));
+      })
+      .map(r => r.c || "");
 
     // 작업자 계정은 현장에서 완료 처리(모뎀설치)만 가능하게 제한합니다.
     // 관리자 계정은 기존 상태 변경 항목을 그대로 유지합니다.
@@ -2526,6 +2548,7 @@ function renderInfo(group) {
           ${infoRowWithCopy("변대주명", first.o || "-", "변대주명")}
           ${infoRowWithCopy("주소", first.f || "-", "주소")}
           ${infoRowWithCopy("도로명주소", first.r || "-", "도로명주소")}
+          ${infoContractRows(contractValues)}
           ${infoRowsWithIndividualCopy("계기번호", meterValues, "계기번호")}
           <div><strong>공동주택명:</strong> ${apt}</div>
           <div><strong>상호명:</strong> ${store}</div>
