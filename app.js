@@ -2492,7 +2492,8 @@ function renderInfo(group) {
     const statusList = bucket.indices.map(idx => String(getRowStatus(group.n, idx, rows[idx]) || "").trim()).filter(Boolean);
     const uniqueStatuses = [...new Set(statusList)];
     const currentStatus = uniqueStatuses.length ? uniqueStatuses[0] : "";
-    const originalStatus = normalizeComparableStatus(first.s || "") || "-";
+    // 우측 상단 상태 배지는 Firebase 변경값이 아니라 엑셀/JSON 원본 현재상태(k)를 표시
+    const originalStatus = normalizeComparableStatus(first.k || "") || "-";
     const apt = escapeHtml(first.h || "-");
     const store = escapeHtml(first.i || "-");
     const note = escapeHtml(first.j || "-");
