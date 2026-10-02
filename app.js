@@ -210,7 +210,13 @@ const ADMIN_GROUPS = {
   high_voltage: ["홍승표", "박한결"],
   team_leader: ["채수철"]
 };
-const FULL_SCOPE_ADMINS = ["김우진", "유병걸", ...Object.values(ADMIN_GROUPS).flat()];
+const FULL_SCOPE_ADMINS = [
+  "김우진", "유병걸",
+  "이덕용", "허경민", "홍창수", "어인신",
+  "문준엽", "장기선", "박지나",
+  "홍승표", "박한결",
+  "채수철"
+];
 
 let activeWorkType = "reinforcement";
 
@@ -1013,6 +1019,17 @@ function initAuthSync() {
   });
 }
 
+function getLoginRoleDisplay() {
+  const userId = getCurrentUserId();
+  if (userId === "김우진") return "개발자";
+  if (userId === "유병걸") return "총괄";
+  if (ADMIN_GROUPS.reinforcement.includes(userId)) return "보강공사 관리자";
+  if (ADMIN_GROUPS.low_voltage.includes(userId)) return "저압 관리자";
+  if (ADMIN_GROUPS.high_voltage.includes(userId)) return "고압 관리자";
+  if (ADMIN_GROUPS.team_leader.includes(userId)) return "팀장";
+  return isAdminUser() ? "관리자" : (activeWorkType === "reinforcement" ? (getAllowedRegionNames().join(", ") || "권한없음") : getWorkTypeLabel());
+}
+
 function renderLoginStatus() {
   const old = document.getElementById("kdnLoginStatus");
   if (old) old.remove();
@@ -1036,11 +1053,7 @@ function renderLoginStatus() {
   box.innerHTML = `
     <span style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
       ${escapeHtml(getCurrentUserId() || "로그인됨")}
-      ${getCurrentUserId() === "김우진"
-        ? " · 개발자"
-        : getCurrentUserId() === "유병걸"
-          ? " · 총괄"
-          : (" · " + escapeHtml(getWorkTypeLabel()) + (isAdminUser() ? " · 관리자" : (activeWorkType === "reinforcement" ? " · " + escapeHtml(getAllowedRegionNames().join(", ") || "권한없음") : "")))}
+      ${" · " + escapeHtml(getLoginRoleDisplay())}
     </span>
     <button id="kdnLogoutBtn" type="button" style="border:none;background:#111827;color:#fff;border-radius:999px;padding:4px 7px;font-size:11px;cursor:pointer;">로그아웃</button>
   `;
