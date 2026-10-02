@@ -204,6 +204,7 @@ const LOW_VOLTAGE_WORKERS = ["이주호", "이준영", "원기연", "이준기",
 const HIGH_VOLTAGE_ADMINS = ["홍승표", "박한결"];
 const HIGH_VOLTAGE_WORKERS = ["장대희", "김민찬", "김경민", "최창원", "박많이", "정현철", "김승원", "박현창", "유상욱", "이길선", "이철희", "최인식"];
 const RELAY_TABLE_WORKERS = ["이철규"];
+const FULL_SCOPE_ADMINS = ["김우진", "유병걸"];
 
 let activeWorkType = "reinforcement";
 
@@ -212,7 +213,7 @@ function getWorkTypeLabel(type = activeWorkType) {
 }
 
 function getUserAssignedWorkType(userId = getCurrentUserId()) {
-  if (userId === "김우진") return activeWorkType;
+  if (FULL_SCOPE_ADMINS.includes(userId)) return activeWorkType;
   if (LOW_VOLTAGE_ADMINS.includes(userId) || LOW_VOLTAGE_WORKERS.includes(userId)) return "low_voltage";
   if (HIGH_VOLTAGE_ADMINS.includes(userId) || HIGH_VOLTAGE_WORKERS.includes(userId)) return "high_voltage";
   if (RELAY_TABLE_WORKERS.includes(userId)) return "relay_table";
@@ -220,7 +221,7 @@ function getUserAssignedWorkType(userId = getCurrentUserId()) {
 }
 
 function isWorkTypeAdmin(userId = getCurrentUserId(), type = activeWorkType) {
-  if (userId === "김우진") return true;
+  if (FULL_SCOPE_ADMINS.includes(userId)) return true;
   if (type === "low_voltage") return LOW_VOLTAGE_ADMINS.includes(userId);
   if (type === "high_voltage") return HIGH_VOLTAGE_ADMINS.includes(userId);
   return false;
@@ -526,6 +527,9 @@ function getCurrentUserId() {
 
 function getUserPermission(email) {
   const userId = getLoginUserId(email);
+  if (FULL_SCOPE_ADMINS.includes(userId)) {
+    return { role: "admin", regions: [] };
+  }
   if (LOW_VOLTAGE_ADMINS.includes(userId) || HIGH_VOLTAGE_ADMINS.includes(userId)) {
     return { role: "admin", regions: [] };
   }
@@ -978,7 +982,7 @@ function initAuthSync() {
     }
 
     currentPermission = getUserPermission(user.email || "");
-    const desiredWorkType = getCurrentUserId() === "김우진" ? "reinforcement" : getUserAssignedWorkType(getCurrentUserId());
+    const desiredWorkType = FULL_SCOPE_ADMINS.includes(getCurrentUserId()) ? "reinforcement" : getUserAssignedWorkType(getCurrentUserId());
     const workTypeChangedAfterLogin = activeWorkType !== desiredWorkType;
     activeWorkType = desiredWorkType;
     hideAuthPanel();
@@ -1967,7 +1971,7 @@ function updateWorkTypeUIVisibility() {
 function renderWorkTypeSwitcher() {
   const old = document.getElementById("kdnWorkTypeSwitcher");
   if (old) old.remove();
-  if (getCurrentUserId() !== "김우진") return null;
+  if (!FULL_SCOPE_ADMINS.includes(getCurrentUserId())) return null;
 
   const row = document.createElement("div");
   row.id = "kdnWorkTypeSwitcher";
@@ -2036,7 +2040,7 @@ async function reloadActiveWorkTypeData() {
 
 async function switchWorkType(type) {
   if (!WORK_TYPES[type] || type === activeWorkType) return;
-  if (getCurrentUserId() !== "김우진" && getUserAssignedWorkType() !== type) return;
+  if (!FULL_SCOPE_ADMINS.includes(getCurrentUserId()) && getUserAssignedWorkType() !== type) return;
 
   closeInfo();
   closeAdminDashboard();
