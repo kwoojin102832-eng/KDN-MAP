@@ -1,0 +1,1 @@
+{"step":0.125,"layout":"packed-v1","maxFileBytes":24500000,"grouping":"coordinate-v1","tiles":[{"id":"low_tile_part_0001","file":"low_tile_part_0001.json","minLat":36.9106157738559,"maxLat":37.5763992284125,"minLng":126.440584641741,"maxLng":127.757259835695,"count":12473,"rows":16671,"sizeBytes":12520817}],"workType":"low_voltage","sheet":"저압"}

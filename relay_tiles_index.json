@@ -1,0 +1,1 @@
+{"step":0.125,"layout":"packed-v1","maxFileBytes":24500000,"grouping":"coordinate-v1","tiles":[{"id":"relay_tile_part_0001","file":"relay_tile_part_0001.json","minLat":0.0,"maxLat":37.5652107421931,"minLng":0.0,"maxLng":127.687368191831,"count":224,"rows":255,"sizeBytes":232505}],"workType":"relay_table","sheet":"보강공사_중계표"}
